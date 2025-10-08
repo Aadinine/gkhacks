@@ -1,11 +1,12 @@
 import random
 import pandas as pd
-from openpyxl import Workbook         
+from openpyxl import Workbook      
+from openpyxl.styles import Font, Alignment   
 from openpyxl.styles import Font     
 
 
 
-# Basic settings
+# Basic variables
 days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 periods = [f'Period {i}' for i in range(1, 9)]
 rooms = ['Room A', 'Room B', 'Room C']
@@ -22,12 +23,12 @@ courses = [
 ]
 
 def create_empty_timetable():
-    timetable = {}  # Start with empty dictionary
+    timetable = {}  
     
     for day in days:
-        timetable[day] = {}  # Create empty slot for each day
+        timetable[day] = {}  
         for period in periods:
-            timetable[day][period] = {}  # Create empty slot for each period
+            timetable[day][period] = {} 
             for room in rooms:
                 if period == f'Period {lunch_period}':
                     timetable[day][period][room] = 'LUNCH BREAK'
@@ -38,7 +39,7 @@ def create_empty_timetable():
 def print_complete_timetable(timetable):
     """Print the complete timetable for all days"""
     print("\n" + "=" * 90)
-    print("📅 COMPLETE WEEKLY TIMETABLE")
+    print("COMPLETE WEEKLY TIMETABLE")
     print("=" * 90)
     
     for day in days:
@@ -55,12 +56,9 @@ def print_complete_timetable(timetable):
 
 def check_teacher_free(teacher, day, period, timetable):
     """Check if a teacher is already teaching in this period"""
-    # Check all rooms in this day and period
     for room in rooms:
-        # If the teacher's name appears in any room this period, they're busy
         if teacher in timetable[day][period][room]:
             return False
-    # If we didn't find the teacher in any room, they're free
     return True
 
 def count_subject_in_day(timetable, day, subject_code):
@@ -81,16 +79,15 @@ def fill_timetable_with_courses(timetable):
         
         # Loop through each period
         for period in periods:
-            # Skip lunch period (we don't add courses here)
             if period == f'Period {lunch_period}':
                 continue
                 
             # Loop through each room
             for room in rooms:
-                # Check if this slot is empty
+                # Check empty
                 if timetable[day][period][room] == 'EMPTY':
                     
-                    # Find all courses that meet our rules
+                    # check if satisfied
                     available_courses = []
                     for course in courses:
                         # Rule 1: Teacher must be free in this period
@@ -118,7 +115,7 @@ def fill_timetable_with_courses(timetable):
 
 def print_subject_counts(timetable):
     """Print how many times each subject appears each day"""
-    print("\n📊 SUBJECT COUNTS PER DAY (Max: 2 per day)")
+    print("\nSUBJECT COUNTS PER DAY (Max: 2 per day)")
     print("=" * 60)
     
     for day in days:
@@ -131,7 +128,7 @@ def print_subject_counts(timetable):
 
 def save_timetable_to_excel(timetable, filename="school_timetable.xlsx"):
     """Save the timetable to an Excel file"""
-    print(f"\n💾 Saving timetable to {filename}...")
+    print(f"\nSaving timetable to {filename}...")
     
     wb = Workbook()
     wb.remove(wb.active)
@@ -156,32 +153,145 @@ def save_timetable_to_excel(timetable, filename="school_timetable.xlsx"):
         ws.column_dimensions['D'].width = 25
     
     wb.save(filename)
-    print(f"✅ Timetable saved successfully as {filename}!")
+    print(f"Timetable saved successfully as {filename}!")
+
+
+def generate_faculty_timetable_detailed(teacher_name, timetable):
+    """Generate detailed timetable showing FREE periods for specific faculty"""
+    print(f"\n👨‍🏫 {teacher_name}'s DETAILED WEEKLY SCHEDULE")
+    print("=" * 70)
+    
+    faculty_schedule = {}
+    
+    for day in days:
+        faculty_schedule[day] = {}
+        print(f"\n{day.upper()}")
+        print("-" * 70)
+        print(f"{'Period':<12} {'Room':<15} {'Subject':<20}")
+        print("-" * 70)
+        
+        for period in periods:
+            faculty_schedule[day][period] = {}
+            teaching_this_period = False
+            
+            for room in rooms:
+                slot = timetable[day][period][room]
+                if teacher_name in slot:
+                    subject = slot.split(' - ')[0]
+                    print(f"{period:<12} {room:<15} {subject:<20}")
+                    faculty_schedule[day][period][room] = subject
+                    teaching_this_period = True
+            
+            # If not teaching in ANY room this period, show as FREE
+            if not teaching_this_period:
+                print(f"{period:<12} {'FREE':<15} {'No class':<20}")
+                faculty_schedule[day][period]['FREE'] = 'No class'
+    
+    return faculty_schedule
+def save_faculty_timetable_detailed(faculty_schedule, teacher_name, filename=None):
+    """Save detailed faculty timetable to Excel with day grouping"""
+    if filename is None:
+        filename = f"{teacher_name.replace(' ', '_')}_detailed_timetable.xlsx"
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = f"{teacher_name} Schedule"
+    
+    headers = ['Day', 'Period', 'Room', 'Subject']
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=header)
+        cell.font = Font(bold=True)
+    
+    row_num = 2
+    for day in days:
+        day_start_row = row_num 
+        
+        for period in periods:
+            if period in faculty_schedule[day]:
+                has_class = False
+                for room in rooms:
+                    if room in faculty_schedule[day][period]:
+                        ws.cell(row=row_num, column=2, value=period)
+                        ws.cell(row=row_num, column=3, value=room)
+                        ws.cell(row=row_num, column=4, value=faculty_schedule[day][period][room])
+                        row_num += 1
+                        has_class = True
+                
+                if not has_class:
+                    ws.cell(row=row_num, column=2, value=period)
+                    ws.cell(row=row_num, column=3, value="FREE")
+                    ws.cell(row=row_num, column=4, value="No class")
+                    row_num += 1
+        
+        # Merge the day column for all periods of this day
+        if row_num > day_start_row:
+            day_cell = ws.cell(row=day_start_row, column=1, value=day)
+            day_cell.font = Font(bold=True)
+            
+            # Merge the day column vertically
+            if row_num - 1 > day_start_row:
+                ws.merge_cells(start_row=day_start_row, start_column=1, 
+                              end_row=row_num-1, end_column=1)
+    
+    # Adjust column widths
+    ws.column_dimensions['A'].width = 15
+    ws.column_dimensions['B'].width = 12
+    ws.column_dimensions['C'].width = 15
+    ws.column_dimensions['D'].width = 20
+    
+    # Center align the merged day cells
+    for row in range(2, row_num):
+        if ws.cell(row=row, column=1).value:
+            ws.cell(row=row, column=1).alignment = Alignment(vertical='center', horizontal='center')
+    
+    wb.save(filename)
+    print(f"{teacher_name}'s detailed timetable saved as {filename}!")
 
 
 
+if __name__ == "__main__":
+    # Print summary
+    print(f"\nSummary:")
+    print(f"• {len(days)} days, {len(periods)} periods per day")
+    print(f"• {len(rooms)} classrooms, {len(courses)} subjects")
+    print(f"• Lunch break: Period {lunch_period}")
+    print(f"• Rule: Max 3 same subjects per day")
+
+    # Create empty timetable
+    print("Step 1: Creating empty timetable...")
+    timetable = create_empty_timetable()
+
+    # Fill with courses
+    print("Step 2: Filling timetable with courses...")
+    timetable = fill_timetable_with_courses(timetable)
+
+    # Print subject counts
+    print_subject_counts(timetable)
+
+    save_timetable_to_excel(timetable)
+    # Print the complete timetable
+    print("\nStep 3: Printing timetable...")
+    print_complete_timetable(timetable)
 
 
-# Create empty timetable
-print("🔄 Step 1: Creating empty timetable...")
-timetable = create_empty_timetable()
-
-# Fill with courses
-print("📚 Step 2: Filling timetable with courses...")
-timetable = fill_timetable_with_courses(timetable)
-
-# Print subject counts
-print_subject_counts(timetable)
+    faculty_name = "Dr. Smith"
+    faculty_schedule = generate_faculty_timetable_detailed(faculty_name, timetable)
+    save_faculty_timetable_detailed(faculty_schedule, faculty_name)
 
 
-save_timetable_to_excel(timetable)
-# Print the complete timetable
-print("\n🖨️ Step 3: Printing timetable...")
-print_complete_timetable(timetable)
+    save_faculty_timetable_detailed(faculty_schedule, "Dr. Smith")
 
-# Print summary
-print(f"\n📊 Summary:")
-print(f"• {len(days)} days, {len(periods)} periods per day")
-print(f"• {len(rooms)} classrooms, {len(courses)} subjects")
-print(f"• Lunch break: Period {lunch_period}")
-print(f"• Rule: Max 2 same subjects per day")
+    faculty_schedule = generate_faculty_timetable_detailed("Dr. Johnson", timetable)
+    save_faculty_timetable_detailed(faculty_schedule, "Dr. Johnson")
+
+    faculty_schedule = generate_faculty_timetable_detailed("Dr. Brown", timetable)
+    save_faculty_timetable_detailed(faculty_schedule, "Dr. Brown")
+
+    faculty_schedule = generate_faculty_timetable_detailed("Dr. Wilson", timetable)
+    save_faculty_timetable_detailed(faculty_schedule, "Dr. Wilson")
+
+    faculty_schedule = generate_faculty_timetable_detailed("Dr. Davis", timetable)
+    save_faculty_timetable_detailed(faculty_schedule, "Dr. Davis")
+
+    faculty_schedule = generate_faculty_timetable_detailed("Dr. Miller", timetable)
+    save_faculty_timetable_detailed(faculty_schedule, "Dr. Miller")
